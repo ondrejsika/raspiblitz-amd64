@@ -40,37 +40,6 @@ sleep 3
 echo ""
 echo "*** CHECK BASE IMAGE ***"
 
-# armv7=32Bit , armv8=64Bit
-echo "Check if Linux ARM based ..." 
-isARM=$(uname -m | grep -c 'arm')
-if [ ${isARM} -eq 0 ]; then
-  echo "!!! FAIL !!!"
-  echo "Can just build on ARM Linux, not on:"
-  uname -m
-  exit 1
-fi
-echo "OK running on Linux ARM architecture."
-
-# keep in mind that DietPi for Raspberry is also a stripped down Raspbian
-echo "Detect Base Image ..." 
-baseImage="?"
-isDietPi=$(uname -n | grep -c 'DietPi')
-isRaspbian=$(cat /etc/os-release 2>/dev/null | grep -c 'Raspbian')
-if [ ${isRaspbian} -gt 0 ]; then
-  baseImage="raspbian"
-fi
-if [ ${isDietPi} -gt 0 ]; then
-  baseImage="dietpi"
-fi
-if [ "${baseImage}" = "?" ]; then
-  cat /etc/os-release 2>/dev/null
-  echo "!!! FAIL !!!"
-  echo "Base Image cannot be detected or is not supported."
-  exit 1
-else
-  echo "OK running ${baseImage}"
-fi
-
 # fixing locales for build
 # https://github.com/rootzoll/raspiblitz/issues/138
 # https://daker.me/2014/10/how-to-fix-perl-warning-setting-locale-failed-in-raspbian.html
@@ -220,51 +189,9 @@ sudo -u admin mkdir /home/admin/download
 cd /home/admin/download
 
 # download resources
-binaryName="bitcoin-${bitcoinVersion}-arm-linux-gnueabihf.tar.gz"
+binaryName="bitcoin-0.17.0.1-x86_64-linux-gnu.tar.gz"
+#####################################
 sudo -u admin wget https://bitcoin.org/bin/bitcoin-core-${bitcoinVersion}/${binaryName}
-if [ ! -f "./${binaryName}" ]
-then
-    echo "!!! FAIL !!! Download BITCOIN BINARY not success."
-    exit 1
-fi
-
-# check binary is was not manipulated (checksum test)
-binaryChecksum=$(sha256sum ${binaryName} | cut -d " " -f1)
-if [ "${binaryChecksum}" != "${bitcoinSHA256}" ]; then
-  echo "!!! FAIL !!! Downloaded BITCOIN BINARY not matching SHA256 checksum: ${bitcoinSHA256}"
-  exit 1
-fi
-
-
-# check gpg finger print
-sudo -u admin wget https://bitcoin.org/laanwj-releases.asc
-if [ ! -f "./laanwj-releases.asc" ]
-then
-  echo "!!! FAIL !!! Download laanwj-releases.asc not success."
-  exit 1
-fi
-gpg ./laanwj-releases.asc
-fingerprint=$(gpg ./laanwj-releases.asc 2>/dev/null | grep "${laanwjPGP}" -c)
-if [ ${fingerprint} -lt 1 ]; then
-  echo ""
-  echo "!!! BUILD WARNING --> Bitcoin PGP author not as expected"
-  echo "Should contain laanwjPGP: ${laanwjPGP}"
-  echo "PRESS ENTER to TAKE THE RISK if you think all is OK"
-  read key
-fi
-gpg --import ./laanwj-releases.asc
-sudo -u admin wget https://bitcoin.org/bin/bitcoin-core-${bitcoinVersion}/SHA256SUMS.asc
-verifyResult=$(gpg --verify SHA256SUMS.asc 2>&1)
-goodSignature=$(echo ${verifyResult} | grep 'Good signature' -c)
-echo "goodSignature(${goodSignature})"
-correctKey=$(echo ${verifyResult} |  grep "using RSA key ${laanwjPGP: -16}" -c)
-echo "correctKey(${correctKey})"
-if [ ${correctKey} -lt 1 ] || [ ${goodSignature} -lt 1 ]; then
-  echo ""
-  echo "!!! BUILD FAILED --> LND PGP Verify not OK / signatute(${goodSignature}) verify(${correctKey})"
-  exit 1
-fi
-
 # correct versions for install if needed
 if [ "${bitcoinVersion}" = "0.17.0.1" ]; then 
  bitcoinVersion="0.17.0"
@@ -287,19 +214,13 @@ echo "*** LITECOIN ***"
 
 # set version (change if update is available)
 litecoinVersion="0.16.3"
-litecoinSHA256="fc6897265594985c1d09978b377d51a01cc13ee144820ddc59fbb7078f122f99"
 cd /home/admin/download
 
 # download
 binaryName="litecoin-${litecoinVersion}-arm-linux-gnueabihf.tar.gz"
+binaryName="litecoin-0.16.3-x86_64-linux-gnu.tar.gz"
 sudo -u admin wget https://download.litecoin.org/litecoin-${litecoinVersion}/linux/${binaryName}
 
-# check download
-binaryChecksum=$(sha256sum ${binaryName} | cut -d " " -f1)
-if [ "${binaryChecksum}" != "${litecoinSHA256}" ]; then
-  echo "!!! FAIL !!! Downloaded LITECOIN BINARY not matching SHA256 checksum: ${litecoinSHA256}"
-  exit 1
-fi
 
 # install
 sudo -u admin tar -xvf ${binaryName}
@@ -316,50 +237,20 @@ echo "*** LND ***"
 
 ## based on https://github.com/Stadicus/guides/blob/master/raspibolt/raspibolt_40_lnd.md#lightning-lnd
 lndVersion="0.5.2-beta"
-lndSHA256="9adf9f3d0b8a62942f68d75ffe043f9255319209f751dee4eac82375ec0a86cd"
-olaoluwaPGP="BD599672C804AF2770869A048B80CD2BB8BD8132"
 
 # get LND resources
 cd /home/admin/download
 binaryName="lnd-linux-armv7-v${lndVersion}.tar.gz"
+binaryName="lnd-linux-amd64-v${lndVersion}.tar.gz"
 sudo -u admin wget https://github.com/lightningnetwork/lnd/releases/download/v${lndVersion}/${binaryName}
 sudo -u admin wget https://github.com/lightningnetwork/lnd/releases/download/v${lndVersion}/manifest-v${lndVersion}.txt
 sudo -u admin wget https://github.com/lightningnetwork/lnd/releases/download/v${lndVersion}/manifest-v${lndVersion}.txt.sig
 sudo -u admin wget https://keybase.io/roasbeef/pgp_keys.asc
 
-# check binary is was not manipulated (checksum test)
-binaryChecksum=$(sha256sum ${binaryName} | cut -d " " -f1)
-if [ "${binaryChecksum}" != "${lndSHA256}" ]; then
-  echo "!!! FAIL !!! Downloaded LND BINARY not matching SHA256 checksum: ${lndSHA256}"
-  exit 1
-fi
-
 # check gpg finger print
-gpg ./pgp_keys.asc
-fingerprint=$(gpg ./pgp_keys.asc 2>/dev/null | grep "${olaoluwaPGP}" -c)
-if [ ${fingerprint} -lt 1 ]; then
-  echo ""
-  echo "!!! BUILD WARNING --> Bitcoin PGP author not as expected"
-  echo "Should contain olaoluwaPGP: ${olaoluwaPGP}"
-  echo "PRESS ENTER to TAKE THE RISK if you think all is OK"
-  read key
-fi
-gpg --import ./pgp_keys.asc
-sleep 3
-verifyResult=$(gpg --verify manifest-v${lndVersion}.txt.sig 2>&1)
-goodSignature=$(echo ${verifyResult} | grep 'Good signature' -c)
-echo "goodSignature(${goodSignature})"
-correctKey=$(echo ${verifyResult} | tr -d " \t\n\r" | grep "${olaoluwaPGP}" -c)
-echo "correctKey(${correctKey})"
-if [ ${correctKey} -lt 1 ] || [ ${goodSignature} -lt 1 ]; then
-  echo ""
-  echo "!!! BUILD FAILED --> LND PGP Verify not OK / signatute(${goodSignature}) verify(${correctKey})"
-  exit 1
-fi
-
 # install
 sudo -u admin tar -xzf ${binaryName}
-sudo install -m 0755 -o root -g root -t /usr/local/bin lnd-linux-armv7-v${lndVersion}/*
+sudo install -m 0755 -o root -g root -t /usr/local/bin lnd-linux-amd64-v${lndVersion}/*
 sleep 3
 installed=$(sudo -u admin lnd --version)
 if [ ${#installed} -eq 0 ]; then
@@ -370,13 +261,13 @@ fi
 
 # Go is needed for ZAP connect later
 echo "*** Installing Go ***"
-wget https://storage.googleapis.com/golang/go1.11.linux-armv6l.tar.gz
-if [ ! -f "./go1.11.linux-armv6l.tar.gz" ]
+wget https://storage.googleapis.com/golang/go1.11.linux-amd64.tar.gz
+if [ ! -f "./go1.11.linux-amd64.tar.gz" ]
 then
     echo "!!! FAIL !!! Download not success."
     exit 1
 fi
-sudo tar -C /usr/local -xzf go1.11.linux-armv6l.tar.gz
+sudo tar -C /usr/local -xzf go1.11.linux-amd64.tar.gz
 sudo rm *.gz
 sudo mkdir /usr/local/gocode
 sudo chmod 777 /usr/local/gocode
@@ -543,71 +434,3 @@ echo "IMPORTANT IF WANT TO MAKE A RELEASE IMAGE FROM THIS BUILD:"
 echo "login once after reboot without HDD and run 'XXprepareRelease.sh'"
 echo ""
 echo "to continue reboot with sudo shutdown -r  now and login with admin"
-
-# install LCD only on an rPI running Raspbian
-if [ "${baseImage}" = "raspbian" ]; then
-  echo "Press ENTER to install LCD and reboot ..."
-  read key
-
-  # give Raspi a default hostname (optional)
-  sudo raspi-config nonint do_hostname "RaspiBlitz"
-
-  # *** Display selection ***
-  dialog --title "Display" --yesno "Are you using the default display available from Amazon?\nSelect 'No' if you are using the Swiss version from play-zone.ch!" 6 80
-  defaultDisplay=$?
-
-  if [ "${defaultDisplay}" = "0" ]; then
-
-    # *** RASPIBLITZ / LCD (at last - because makes a reboot) ***
-    # based on https://www.elegoo.com/tutorial/Elegoo%203.5%20inch%20Touch%20Screen%20User%20Manual%20V1.00.2017.10.09.zip
-    
-    echo "--> LCD DEFAULT"
-    cd /home/admin/
-    sudo apt-mark hold raspberrypi-bootloader
-    git clone https://github.com/goodtft/LCD-show.git
-    sudo chmod -R 755 LCD-show
-    sudo chown -R admin:admin LCD-show
-    cd LCD-show/
-    sudo ./LCD35-show
-
-  else
-
-    # Download and install the driver
-    # based on http://www.raspberrypiwiki.com/index.php/3.5_inch_TFT_800x480@60fps
-
-    echo "--> LCD ALTERNATIVE"
-    cd /boot
-    sudo wget http://www.raspberrypiwiki.com/download/RPI-HD-35-INCH-TFT/dt-blob-For-3B-plus.bin
-    sudo mv dt-blob-For-3B-plus.bin dt-blob.bin
-    cat <<EOF >> config.txt
-
-  dtparam=spi=off
-  dtparam=i2c_arm=off
-
-  # Set screen size and any overscan required
-  overscan_left=0
-  overscan_right=0
-  overscan_top=0
-  overscan_bottom=0
-  framebuffer_width=800
-  framebuffer_height=480
-
-
-  enable_dpi_lcd=1
-  display_default_lcd=1
-  dpi_group=2
-  dpi_mode=87
-  dpi_output_format=0x6f015
-
-  # set up the size to 800x480
-  hdmi_timings=480 0 16 16 24 800 0 4 2 2 0 0 0 60 0 32000000 6
-
-  #rotate screen
-  display_rotate=3
-
-  dtoverlay=i2c-gpio,i2c_gpio_scl=24,i2c_gpio_sda=23
-  fi
-EOF
-    init 6
-  fi
-fi
